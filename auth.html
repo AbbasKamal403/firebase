@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Login & Sign Up</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .message-box {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        .message-box.error {
+            background-color: #fca5a5;
+            color: #b91c1c;
+        }
+        .message-box.success {
+            background-color: #a7f3d0;
+            color: #065f46;
+        }
+    </style>
+</head>
+<body class="bg-[#19292D] flex items-center justify-center min-h-screen">
+
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Welcome</h1>
+        <form id="login-form" class="space-y-4">
+            <input 
+                type="email" 
+                id="email" 
+                placeholder="Email address" 
+                required
+                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+            <input 
+                type="password" 
+                id="password" 
+                placeholder="Password" 
+                required
+                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+            <button 
+                type="submit" 
+                class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+                Log In
+            </button>
+        </form>
+        
+        <p class="mt-6 text-center text-gray-600">
+            Don't have an account? 
+            <button 
+                type="button"
+                id="signup-button" 
+                class="text-blue-600 font-semibold hover:text-blue-800 transition-colors duration-300 focus:outline-none focus:underline"
+            >
+                Sign Up
+            </button>
+        </p>
+
+        <div id="user-info" class="mt-4 text-center text-sm text-gray-500"></div>
+    </div>
+
+    <!-- Custom message box -->
+    <div id="message-box" class="message-box"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, auth, db, userId;
+        
+        const loginForm = document.getElementById('login-form');
+        const signupButton = document.getElementById('signup-button');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const messageBox = document.getElementById('message-box');
+        const userInfoDisplay = document.getElementById('user-info');
+
+        // Function to display messages instead of using alert()
+        function showMessage(message, type = 'success') {
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type}`;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 3000);
+        }
+
+        // Initialize Firebase app and services
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+            showMessage("Failed to initialize Firebase. Please check your configuration.", "error");
+        }
+
+        if (auth && initialAuthToken) {
+            signInWithCustomToken(auth, initialAuthToken).catch((error) => {
+                console.error("Custom token sign-in failed:", error);
+                signInAnonymously(auth);
+            });
+        } else {
+            signInAnonymously(auth);
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                userInfoDisplay.textContent = `Signed in as: ${userId}`;
+                console.log("User signed in with ID:", userId);
+                // The automatic redirect was causing an error.
+                // You are now signed in and can go to index.html manually.
+                showMessage('You are already logged in. You can now go to the home page.', 'success');
+            } else {
+                userId = null;
+                userInfoDisplay.textContent = 'Not signed in.';
+                console.log("User signed out.");
+            }
+        });
+
+        // Handle user login
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = emailInput.value;
+                const password = passwordInput.value;
+                
+                signInWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        console.log('User logged in:', userCredential.user.uid);
+                        // The automatic redirect was causing an error.
+                        // You are now logged in and can go to index.html manually.
+                        showMessage('Login successful! You can now go to the home page.', 'success');
+                    })
+                    .catch((error) => {
+                        const errorMessage = error.message;
+                        console.error(errorMessage);
+                        showMessage(`Login failed: ${errorMessage}`, 'error');
+                    });
+            });
+        }
+
+        // Handle user sign up
+        if (signupButton) {
+            signupButton.addEventListener('click', () => {
+                const email = emailInput.value;
+                const password = passwordInput.value;
+                
+                createUserWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        const user = userCredential.user;
+                        console.log('User created:', user.uid);
+                        showMessage("Account created! You are now logged in.", "success");
+
+                        // Save a user profile document in Firestore
+                        const userProfileRef = doc(db, `/artifacts/${appId}/users/${user.uid}/profiles`, user.uid);
+                        return setDoc(userProfileRef, {
+                            email: user.email,
+                            createdAt: new Date(),
+                            userId: user.uid
+                        });
+                    })
+                    .catch((error) => {
+                        const errorMessage = error.message;
+                        console.error(errorMessage);
+                        showMessage(`Signup failed: ${errorMessage}`, "error");
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
